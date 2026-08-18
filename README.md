@@ -1,39 +1,40 @@
-# Activation-viz
+# activation_viz
 
-Simple GUI App which allows you to visualize llm queries on a small local model.
+A lightweight LLM activation vizualizer
 
-- GUI written with Python + TKinter
-- LLM: HuggingFaceTB/SmolLM-135M-Instruct
+Simple GUI app which lets you visualize per-layer activations of a small
+local LLM as it generates a response.
+
+- GUI written with Python + Tkinter
+- LLM: `HuggingFaceTB/SmolLM-135M-Instruct`
     - For now, the LLM used is not configurable
-
-https://github.com/user-attachments/assets/eacb7089-2e7a-42ac-abdb-674c469a28a4
 
 ## Quickstart
 
-Requirements:
-- Python 3.14+
-- uv [(Download guide)](https://docs.astral.sh/uv/getting-started/installation/)
+Note: running the app for the first time may take a bit — the local LLM
+model files are downloaded from Hugging Face and cached for subsequent runs.
 
-Note: running gui.py the first time might take a bit. The local LLM model files 
-are downloaded from HuggingFace. All model files are cached for subsequent runs.
+```bash
+make sync
+uv run activation_viz
+```
 
-```sh
-uv sync
-uv run gui.py
+### Mock mode
+
+Set `USE_MOCK_LLM=1` to skip downloading/running the local LLM and instead
+use canned token/activation data from `activation_viz/fixtures.py`:
+
+```bash
+USE_MOCK_LLM=1 uv run activation_viz
 ```
 
 ## Development
 
-Set `USE_MOCK_LLM=1` to skip downloading/running the local LLM and instead use
-canned token/activation data from `fixtures.py`:
-
-```sh
-USE_MOCK_LLM=1 uv run gui.py
+```bash
+make sync       # install dependencies, create .venv
+make test       # run pytest
+make lint       # check types (mypy) and lint/format (ruff)
+make lint-fix   # auto-fix lint/formatting issues
 ```
 
-### Static Code Checks
-
-```sh
-uv run ruff format --check .
-uv run mypy .
-```
+Run `make help` to list all available commands. See `AGENTS.md` for coding conventions.

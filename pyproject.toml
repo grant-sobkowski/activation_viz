@@ -1,17 +1,61 @@
 [project]
-name = "activation-viz"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+authors = [{ "name" = "Grant Sobkowski" }]
+description = "A lightweight LLM activation vizualizer"
+license = { "file" = "LICENSE" }
+name = "activation_viz"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.14"
+version = "0.1.0"
+
 dependencies = [
-    "accelerate>=1.14.0",
-    "torch>=2.13.0",
-    "transformers>=5.14.1",
+  "accelerate>=1.14.0",
+  "huggingface-hub",
+  "torch>=2.13.0",
+  "transformers>=5.14.1",
 ]
+
+[project.scripts]
+activation_viz = "activation_viz.main:main"
 
 [dependency-groups]
 dev = [
-    "mypy>=2.3.0",
-    "ruff>=0.16.1",
+  "build",
+  "mypy",
+  "pre-commit",
+  "pytest",
+  "pytest-cov",
+  "pytest-pretty",
+  "ruff",
+  "uv"
 ]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.coverage.run]
+concurrency = ["thread"]
+omit = [
+  "./activation_viz/__init__.py",
+  "./tests/*",
+]
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = false
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.ruff]
+exclude = [".venv"]
+line-length = 120
+
+[tool.uv]
+exclude-newer = "1 week"
+
+[tool.uv.build-backend]
+module-root = ""

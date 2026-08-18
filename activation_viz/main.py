@@ -4,12 +4,15 @@ import threading
 import time
 import tkinter as tk
 from dataclasses import dataclass
+from logging import getLogger
 from tkinter import ttk
 
-from fixtures import TOKENS, get_default_graph_text
-from llm import ProfiledSmolLM, ProfiledToken, download_model
+from activation_viz.fixtures import TOKENS, get_default_graph_text
+from activation_viz.llm import ProfiledSmolLM, ProfiledToken, download_model
 
 USE_MOCK_LLM = os.environ.get("USE_MOCK_LLM", "").lower() in ("1", "true", "yes")
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -140,9 +143,7 @@ class TokenManager:
             size = len(tensor)
 
             if size % self.graph_config.y_size > 0:
-                raise ValueError(
-                    f"Tensor {i} doesn't evenly divide into graph with x_size {self.graph_config.x_size}"
-                )
+                raise ValueError(f"Tensor {i} doesn't evenly divide into graph with x_size {self.graph_config.x_size}")
 
             # Batch tensor activations so we can display them on graph
             # Example: Tensor with 768 activations and a graph with y_size 13 results in batches of 60
@@ -193,7 +194,7 @@ class TokenManager:
 def main() -> None:
     """Build and run the activation-viz Tk application."""
     if not USE_MOCK_LLM:
-        print("Fetching model...")
+        logger.info("Fetching model...")
         download_model()
         time.sleep(2)
 
@@ -220,12 +221,8 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager) -> None:
     grey_label = ttk.Style()
 
     sidebar_style.configure("SideBar.TFrame", background="#ececec")
-    llm_input_style_a.configure(
-        "InputA.TEntry", padding=(8, 8, 8, 200), foreground="grey"
-    )
-    llm_input_style_b.configure(
-        "InputB.TEntry", padding=(8, 8, 8, 200), foreground="black"
-    )
+    llm_input_style_a.configure("InputA.TEntry", padding=(8, 8, 8, 200), foreground="grey")
+    llm_input_style_b.configure("InputB.TEntry", padding=(8, 8, 8, 200), foreground="black")
     grey_label.configure("Grey.Label", background="#ececec")
 
     sidebar = ttk.Frame(frm, style="SideBar.TFrame")
@@ -240,10 +237,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager) -> None:
         """Clear the placeholder text when the input gains focus."""
         del event  # unused
         # check for current style to prevent deleting input when user enters placeholder verbatim
-        if (
-            llm_input.cget("style") == "InputA.TEntry"
-            and llm_input.get() == llm_input_placeholder
-        ):
+        if llm_input.cget("style") == "InputA.TEntry" and llm_input.get() == llm_input_placeholder:
             llm_input.delete(0, tk.END)
             llm_input.config(style="InputB.TEntry")
 
@@ -262,9 +256,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager) -> None:
 
     playback = ttk.Frame(sidebar, style="SideBar.TFrame")
     playback.grid(column=0, row=3, padx=32)
-    current_token_display = ttk.Label(
-        playback, text="token 0 / 0", width=16, style="Grey.Label", anchor="center"
-    )
+    current_token_display = ttk.Label(playback, text="token 0 / 0", width=16, style="Grey.Label", anchor="center")
     current_token_display.grid(column=1, row=0, pady=32)
 
     back_button = ttk.Button(playback, text="◀ ", width=4, state="disabled")
@@ -292,9 +284,7 @@ def create_sidebar(frm: ttk.Frame, mgr: TokenManager) -> None:
     mgr.tk_llm_output = llm_output
 
 
-def run_llm(
-    sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_button: ttk.Button
-) -> None:
+def run_llm(sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_button: ttk.Button) -> None:
     """Run the LLM on the current input text in a background thread, showing a progress popup."""
     input_text = llm_input.get()
     run_button.config(state="disabled")
@@ -332,9 +322,7 @@ def run_llm(
         serves to keep the GUI process running while waiting.
         """
         if USE_MOCK_LLM:
-            result["tokens"] = [
-                ProfiledToken(text, tensors) for text, tensors in TOKENS
-            ]
+            result["tokens"] = [ProfiledToken(text, tensors) for text, tensors in TOKENS]
         else:
             llm = ProfiledSmolLM()
             result["tokens"] = llm.run(input_text)
@@ -377,9 +365,7 @@ def create_display(frm: ttk.Frame, mgr: TokenManager) -> None:
     activation_l = ttk.Label(activation_f, text="Activation threshold: ")
     activation_l.grid(row=0, column=0)
 
-    activation = ttk.Combobox(
-        activation_f, width=5, values=["0.25", "0.33", "0.50", "0.66", "0.75"]
-    )
+    activation = ttk.Combobox(activation_f, width=5, values=["0.25", "0.33", "0.50", "0.66", "0.75"])
     activation.config(state=tk.DISABLED)
     mgr.tk_cb_activation = activation
 

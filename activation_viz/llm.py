@@ -1,11 +1,14 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from logging import getLogger
 
 import torch
 from huggingface_hub import snapshot_download
 from transformers import AutoModelForCausalLM, AutoTokenizer, BatchEncoding
 
 MODEL_ID = "HuggingFaceTB/SmolLM-135M-Instruct"
+
+logger = getLogger(__name__)
 
 
 def download_model() -> None:
@@ -41,9 +44,7 @@ class _LayerActivations:
 class ProfiledSmolLM:
     def __init__(self) -> None:
         """Load the SmolLM model and tokenizer from the local Hugging Face cache."""
-        self.model = AutoModelForCausalLM.from_pretrained(
-            MODEL_ID, device_map="auto", local_files_only=True
-        )
+        self.model = AutoModelForCausalLM.from_pretrained(MODEL_ID, device_map="auto", local_files_only=True)
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, local_files_only=True)
 
     def run(self, input_text: str) -> list[ProfiledToken]:
@@ -66,9 +67,7 @@ class ProfiledSmolLM:
 
         return profiled_tokens
 
-    def _create_layer_hook(
-        self, layer: int
-    ) -> Callable[[torch.nn.Module, tuple, torch.Tensor], None]:
+    def _create_layer_hook(self, layer: int) -> Callable[[torch.nn.Module, tuple, torch.Tensor], None]:
         """Build a forward hook that records the given layer's normalized activations."""
 
         def hook(_module: torch.nn.Module, _input: tuple, output: torch.Tensor) -> None:
@@ -105,8 +104,8 @@ class ProfiledSmolLM:
     def _parse_output_tokens(self, model_output: torch.Tensor) -> list[str]:
         """Decode the generated output tensor into the text tokens that were profiled."""
         tokens = self.tokenizer.convert_ids_to_tokens(  # type: ignore[call-overload]
-            model_output,
-            skip_special_tokens=True,  # type: ignore[arg-type]
+            model_output,  # type: ignore[arg-type]
+            skip_special_tokens=True,
         )
         assert isinstance(tokens, list)
         assert all(isinstance(token, str) for token in tokens)
@@ -128,9 +127,7 @@ class ProfiledSmolLM:
             parsed.append(pt)
         return parsed
 
-    def _generate(
-        self, input_tokens: BatchEncoding, max_new_tokens: int = 300
-    ) -> torch.Tensor:
+    def _generate(self, input_tokens: BatchEncoding, max_new_tokens: int = 300) -> torch.Tensor:
         """Run generation with per-layer activation hooks attached, then remove the hooks."""
 
         # GUI activation display not dynamic, model must have 30 layers
