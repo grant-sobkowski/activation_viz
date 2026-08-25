@@ -9,6 +9,7 @@ version = "0.1.0"
 
 dependencies = [
   "accelerate>=1.14.0",
+  "customtkinter>=6.0.0",
   "huggingface-hub",
   "torch>=2.13.0",
   "transformers>=5.14.1",
