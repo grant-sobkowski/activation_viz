@@ -5,7 +5,8 @@ import time
 import tkinter as tk
 from dataclasses import dataclass
 from logging import getLogger
-from tkinter import ttk
+
+import customtkinter as ctk
 
 from activation_viz.fixtures import TOKENS, get_default_graph_text
 from activation_viz.llm import ProfiledSmolLM, ProfiledToken, download_model
@@ -13,6 +14,24 @@ from activation_viz.llm import ProfiledSmolLM, ProfiledToken, download_model
 USE_MOCK_LLM = os.environ.get("USE_MOCK_LLM", "").lower() in ("1", "true", "yes")
 
 logger = getLogger(__name__)
+
+# CTkTextbox needs an explicit monospace font so the activation graph's ASCII grid stays aligned.
+MONOSPACE_FONT = {"family": "Courier New", "size": 13}
+
+LLM_INPUT_PLACEHOLDER = "What is the capital of France?"
+# CTkTextbox has no placeholder_text option (unlike CTkEntry), so the placeholder is emulated
+# with a dimmed color that's swapped for the real text color on focus in/out.
+PLACEHOLDER_TEXT_COLOR = "gray50"
+
+
+def _char_size(font: ctk.CTkFont, chars: int, lines: int = 1) -> tuple[int, int]:
+    """
+    Convert a char/line count (as tk.Text/ttk widths used to be given) into the pixel
+    width/height CTk widgets expect, measured against the actual font a widget will render
+    with -- CTk applies its own DPI/widget scaling on top of the font, so a fixed px-per-char
+    guess drifts from the real rendered size across systems.
+    """
+    return font.measure("0" * chars), font.metrics("linespace") * lines
 
 
 @dataclass
@@ -29,7 +48,7 @@ class TokenManager:
 
     def __init__(
         self,
-        root: tk.Tk,
+        root: ctk.CTk,
         graph_config: GraphConfig,
     ) -> None:
         """Initialize GUI state for the given Tk root and graph configuration."""
@@ -40,13 +59,13 @@ class TokenManager:
         self.is_playing = False
         self.tokens: list[ProfiledToken] = []
 
-        self.tk_graph: tk.Text
-        self.tk_token_status: ttk.Label
-        self.tk_cb_activation: ttk.Combobox
-        self.tk_llm_output: tk.Text
-        self.tk_toggle_play: ttk.Button
-        self.tk_forward: ttk.Button
-        self.tk_backward: ttk.Button
+        self.tk_graph: ctk.CTkTextbox
+        self.tk_token_status: ctk.CTkLabel
+        self.tk_cb_activation: ctk.CTkComboBox
+        self.tk_llm_output: ctk.CTkTextbox
+        self.tk_toggle_play: ctk.CTkButton
+        self.tk_forward: ctk.CTkButton
+        self.tk_backward: ctk.CTkButton
 
     def set_tokens(self, tokens: list[ProfiledToken]) -> None:
         """Load a new list of tokens and start playback from the first token."""
@@ -57,7 +76,7 @@ class TokenManager:
         self.last_token = len(tokens) - 1
         self.tokens = tokens
 
-        self.tk_cb_activation.config(state=tk.NORMAL)
+        self.tk_cb_activation.configure(state=ctk.NORMAL)
 
         self.render_token()
         self.toggle_play()
@@ -84,45 +103,45 @@ class TokenManager:
     def render_token(self) -> None:
         """Render the current token's activation graph, output text, and status label."""
         if self.tk_graph is None:
-            return ValueError("tk_graph must be set before using render_token")
+            raise ValueError("tk_graph must be set before using render_token")
         if self.tk_llm_output is None:
-            return ValueError("tk_llm_output must be set before using render_token")
+            raise ValueError("tk_llm_output must be set before using render_token")
         if self.tk_token_status is None:
-            return ValueError("tk_token_status must be set before using render_token")
+            raise ValueError("tk_token_status must be set before using render_token")
 
         # Render tensors on graph
         compressed_tensors = self._compress_tensors()
         graph_text: str = self._graph_weights(compressed_tensors)
-        self.tk_graph.config(state=tk.NORMAL)
+        self.tk_graph.configure(state=ctk.NORMAL)
         self.tk_graph.delete("1.0", "end")
         self.tk_graph.insert("1.0", graph_text)
-        self.tk_graph.config(state=tk.DISABLED)
+        self.tk_graph.configure(state=ctk.DISABLED)
 
         # Render llm output box
         llm_text_tokens = [t.text for t in self.tokens[0 : self.curr_token + 1]]
         llm_output = "".join(llm_text_tokens)
-        self.tk_llm_output.config(state=tk.NORMAL)
+        self.tk_llm_output.configure(state=ctk.NORMAL)
         self.tk_llm_output.delete("1.0", "end")
         self.tk_llm_output.insert("1.0", llm_output)
-        self.tk_llm_output.config(state=tk.DISABLED)
+        self.tk_llm_output.configure(state=ctk.DISABLED)
 
         # Render token x / x label
-        self.tk_token_status.config(text=f"token {self.curr_token} / {self.last_token}")
+        self.tk_token_status.configure(text=f"token {self.curr_token} / {self.last_token}")
 
     def toggle_play(self) -> None:
         """Toggle between playing and paused playback state."""
         if self.is_playing:
             # Switch state to paused
             self.is_playing = False
-            self.tk_toggle_play.config(text="▶ Play")
-            self.tk_backward.config(state="normal")
-            self.tk_forward.config(state="normal")
+            self.tk_toggle_play.configure(text="▶ Play")
+            self.tk_backward.configure(state="normal")
+            self.tk_forward.configure(state="normal")
             return
 
         self.is_playing = True
-        self.tk_toggle_play.config(text="⏸ Pause")
-        self.tk_backward.config(state="disabled")
-        self.tk_forward.config(state="disabled")
+        self.tk_toggle_play.configure(text="⏸ Pause")
+        self.tk_backward.configure(state="disabled")
+        self.tk_forward.configure(state="disabled")
 
         self.root.after(500, self._playback)
 
@@ -198,111 +217,142 @@ def main() -> None:
         download_model()
         time.sleep(2)
 
-    root = tk.Tk()
-    main = ttk.Frame(root, padding=10)
-    main.grid(sticky="nsew")
+    root = ctk.CTk()
+
+    main = ctk.CTkFrame(root, fg_color="transparent")
+    main.grid(sticky="nsew", padx=10, pady=10)
     main.columnconfigure(0, weight=0)
     main.columnconfigure(1, weight=1)
 
     graph_config = GraphConfig(30, 32, 0.33)
     mgr = TokenManager(root, graph_config)
 
+    # Build the UI at customtkinter's unscaled default (1.0) first, then scale it as a whole --
+    # see _scale_and_center for why this has to happen in that order.
     create_display(main, mgr)
     create_sidebar(main, mgr)
+
+    _scale_and_center(root)
 
     main.mainloop()
 
 
-def create_sidebar(frm: ttk.Frame, mgr: TokenManager) -> None:
+def _scale_and_center(root: ctk.CTk) -> None:
+    """
+    Scale the already-built UI to the display's real DPI and center the window on screen.
+
+    customtkinter doesn't auto-detect DPI scaling on X11 (unlike classic Tk, which does), so
+    without this its widgets render far smaller than the rest of the desktop. The fix is
+    ctk.set_widget_scaling(), but that call has a side effect: it immediately locks the real
+    window's min/max size to whatever CTk's tracked "current size" is at that moment. CTk
+    starts every window at a hardcoded 600x500 regardless of content, and on at least some
+    window managers that lock, once set, can't be widened again by any later call -- resizing
+    or rescaling -- which is what cropped the window before this fix. So scaling is applied
+    only once, here, after layout, with CTk's tracked size seeded to the real unscaled content
+    size first, so the one-and-only lock already matches what the window actually needs.
+    """
+    root.update_idletasks()
+    unscaled_w, unscaled_h = root.winfo_reqwidth(), root.winfo_reqheight()
+    screen_w, screen_h = root.winfo_screenwidth(), root.winfo_screenheight()
+    margin_w, margin_h = 80, 120  # room for window decorations/taskbars
+
+    dpi_scale = root.winfo_fpixels("1i") / 96  # 96 DPI is customtkinter's "100%" baseline
+    scale = min(dpi_scale, (screen_w - margin_w) / unscaled_w, (screen_h - margin_h) / unscaled_h)
+
+    root._current_width, root._current_height = unscaled_w, unscaled_h
+    ctk.set_widget_scaling(scale)
+    ctk.set_window_scaling(scale)
+    root.update_idletasks()
+
+    x = max((screen_w - round(unscaled_w * scale)) // 2, 0)
+    y = max((screen_h - round(unscaled_h * scale)) // 2, 0)
+    root.geometry(f"+{x}+{y}")  # position only -- see docstring for why not to resize again here
+
+
+def create_sidebar(frm: ctk.CTkFrame, mgr: TokenManager) -> None:
     """Build the sidebar: LLM input, run button, output box, and playback controls."""
-    sidebar_style = ttk.Style()
-    llm_input_style_a = ttk.Style()
-    llm_input_style_b = ttk.Style()
-    grey_label = ttk.Style()
-
-    sidebar_style.configure("SideBar.TFrame", background="#ececec")
-    llm_input_style_a.configure("InputA.TEntry", padding=(8, 8, 8, 200), foreground="grey")
-    llm_input_style_b.configure("InputB.TEntry", padding=(8, 8, 8, 200), foreground="black")
-    grey_label.configure("Grey.Label", background="#ececec")
-
-    sidebar = ttk.Frame(frm, style="SideBar.TFrame")
+    sidebar = ctk.CTkFrame(frm, fg_color="#ececec")
     sidebar.grid(column=0, row=0, rowspan=2, sticky="ns", padx=8, pady=(43, 8))
 
-    llm_input = ttk.Entry(sidebar, width=30, style="InputA.TEntry")
+    default_font = ctk.CTkFont()
+    mono_font = ctk.CTkFont(**MONOSPACE_FONT)
+
+    input_w, input_h = _char_size(default_font, 30, 3)
+    llm_input = ctk.CTkTextbox(sidebar, width=input_w, height=input_h, font=default_font)
     llm_input.grid(column=0, row=0)
-    llm_input_placeholder = "What is the capital of France?"
-    llm_input.insert(0, llm_input_placeholder)
 
-    def input_focus_in(event: tk.Event) -> None:
-        """Clear the placeholder text when the input gains focus."""
-        del event  # unused
-        # check for current style to prevent deleting input when user enters placeholder verbatim
-        if llm_input.cget("style") == "InputA.TEntry" and llm_input.get() == llm_input_placeholder:
-            llm_input.delete(0, tk.END)
-            llm_input.config(style="InputB.TEntry")
+    default_input_text_color = llm_input.cget("text_color")
+    llm_input.insert("1.0", LLM_INPUT_PLACEHOLDER)
+    llm_input.configure(text_color=PLACEHOLDER_TEXT_COLOR)
 
-    def input_focus_out(event: tk.Event) -> None:
-        """Restore the placeholder text if the input is left empty."""
-        del event  # unused
-        if llm_input.get() == "":
-            llm_input.insert(0, llm_input_placeholder)
-            llm_input.config(style="InputA.TEntry")
+    def _clear_placeholder(_event: tk.Event | None = None) -> None:
+        if llm_input.get("1.0", "end-1c") == LLM_INPUT_PLACEHOLDER:
+            llm_input.delete("1.0", "end")
+            llm_input.configure(text_color=default_input_text_color)
 
-    llm_input.bind("<FocusIn>", input_focus_in)
-    llm_input.bind("<FocusOut>", input_focus_out)
+    def _restore_placeholder(_event: tk.Event | None = None) -> None:
+        if not llm_input.get("1.0", "end-1c").strip():
+            llm_input.delete("1.0", "end")
+            llm_input.insert("1.0", LLM_INPUT_PLACEHOLDER)
+            llm_input.configure(text_color=PLACEHOLDER_TEXT_COLOR)
 
-    run_button = ttk.Button(sidebar, text="Run", width=30)
+    llm_input.bind("<FocusIn>", _clear_placeholder)
+    llm_input.bind("<FocusOut>", _restore_placeholder)
+
+    run_button = ctk.CTkButton(sidebar, text="Run", width=input_w)
     run_button.grid(column=0, row=1, pady=32)
 
-    playback = ttk.Frame(sidebar, style="SideBar.TFrame")
+    playback = ctk.CTkFrame(sidebar, fg_color="#ececec")
     playback.grid(column=0, row=3, padx=32)
-    current_token_display = ttk.Label(playback, text="token 0 / 0", width=16, style="Grey.Label", anchor="center")
+    label_w, _ = _char_size(default_font, 16)
+    current_token_display = ctk.CTkLabel(playback, text="token 0 / 0", width=label_w, anchor="center")
     current_token_display.grid(column=1, row=0, pady=32)
 
-    back_button = ttk.Button(playback, text="◀ ", width=4, state="disabled")
+    arrow_w, _ = _char_size(default_font, 4)
+    back_button = ctk.CTkButton(playback, text="◀ ", width=arrow_w, state="disabled")
     back_button.grid(column=0, row=1, padx=16)
-    back_button.config(command=mgr.prior_token)
+    back_button.configure(command=mgr.prior_token)
 
-    play_stop_button = ttk.Button(playback, text="▶ Play", width=16)
+    play_stop_button = ctk.CTkButton(playback, text="▶ Play", width=label_w)
     play_stop_button.grid(column=1, row=1, padx=16)
-    play_stop_button.config(command=mgr.toggle_play)
+    play_stop_button.configure(command=mgr.toggle_play)
 
-    forward_button = ttk.Button(playback, text="▶ ", width=4, state="disabled")
+    forward_button = ctk.CTkButton(playback, text="▶ ", width=arrow_w, state="disabled")
     forward_button.grid(column=2, row=1, padx=16)
-    forward_button.config(command=mgr.next_token)
+    forward_button.configure(command=mgr.next_token)
 
     mgr.tk_token_status = current_token_display
     mgr.tk_toggle_play = play_stop_button
     mgr.tk_forward = forward_button
     mgr.tk_backward = back_button
 
-    run_button.config(command=lambda: run_llm(sidebar, mgr, llm_input, run_button))
+    run_button.configure(command=lambda: run_llm(sidebar, mgr, llm_input, run_button))
 
-    llm_output = tk.Text(sidebar, width=30, height=16, background="#fff")
+    out_w, out_h = _char_size(mono_font, 30, 16)
+    llm_output = ctk.CTkTextbox(sidebar, width=out_w, height=out_h, fg_color="#fff", font=mono_font)
     llm_output.grid(column=0, row=2)
-    llm_output.config(state=tk.DISABLED)
+    llm_output.configure(state=ctk.DISABLED)
     mgr.tk_llm_output = llm_output
 
 
-def run_llm(sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_button: ttk.Button) -> None:
+def run_llm(sidebar: ctk.CTkFrame, mgr: TokenManager, llm_input: ctk.CTkTextbox, run_button: ctk.CTkButton) -> None:
     """Run the LLM on the current input text in a background thread, showing a progress popup."""
-    input_text = llm_input.get()
-    run_button.config(state="disabled")
+    input_text = llm_input.get("1.0", "end-1c").strip() or LLM_INPUT_PLACEHOLDER
+    run_button.configure(state="disabled")
 
-    popup = tk.Toplevel(sidebar)
+    popup = ctk.CTkToplevel(sidebar)
     popup.title("Running")
     popup.resizable(False, False)
     popup.protocol("WM_DELETE_WINDOW", lambda: None)  # block closing mid-run
     popup.transient(mgr.root)
 
-    ttk.Label(
+    ctk.CTkLabel(
         popup,
         text="Generating local LLM response - model: SmolLM-135M-Instruct",
-        padding=(24, 16, 24, 8),
-    ).grid(row=0, column=0)
-    progress = ttk.Progressbar(popup, mode="indeterminate", length=220)
+    ).grid(row=0, column=0, padx=24, pady=(16, 8))
+    progress = ctk.CTkProgressBar(popup, mode="indeterminate", indeterminate_speed=1.2, width=220)
     progress.grid(row=1, column=0, padx=24, pady=(0, 16))
-    progress.start(10)
+    progress.start()
 
     popup.update_idletasks()  # force rerender
 
@@ -336,7 +386,7 @@ def run_llm(sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_but
         progress.stop()
         popup.grab_release()
         popup.destroy()
-        run_button.config(state="normal")
+        run_button.configure(state="normal")
         mgr.set_tokens(result["tokens"])
 
     """
@@ -351,46 +401,52 @@ def run_llm(sidebar: ttk.Frame, mgr: TokenManager, llm_input: ttk.Entry, run_but
     check_done(thread)
 
 
-def create_display(frm: ttk.Frame, mgr: TokenManager) -> None:
+def create_display(frm: ctk.CTkFrame, mgr: TokenManager) -> None:
     """Build the main display: activation graph and threshold selector."""
 
-    display = ttk.Frame(frm)
+    display = ctk.CTkFrame(frm, fg_color="transparent")
     display.grid(column=1, row=0, sticky="nsew")
     display.rowconfigure(0, weight=0)
     display.rowconfigure(1, weight=1)
 
-    activation_f = ttk.Frame(display)
+    activation_f = ctk.CTkFrame(display, fg_color="transparent")
     activation_f.grid(column=0, row=0, sticky="ne")
 
-    activation_l = ttk.Label(activation_f, text="Activation threshold: ")
+    activation_l = ctk.CTkLabel(activation_f, text="Activation threshold: ")
     activation_l.grid(row=0, column=0)
 
-    activation = ttk.Combobox(activation_f, width=5, values=["0.25", "0.33", "0.50", "0.66", "0.75"])
-    activation.config(state=tk.DISABLED)
-    mgr.tk_cb_activation = activation
-
-    def cb_select(event: tk.Event) -> None:
+    def cb_select(value: str) -> None:
         """Update the graph's activation threshold when a new value is selected."""
-        del event  # unused
-        mgr.graph_config.threshold = float(activation.get())
+        mgr.graph_config.threshold = float(value)
         mgr.render_token()
-        activation.selection_clear()
 
-    activation.bind("<<ComboboxSelected>>", func=cb_select)
-    activation.current(1)
-    activation.state(["readonly"])
+    default_font = ctk.CTkFont()
+    combo_w, _ = _char_size(default_font, 5)
+    activation = ctk.CTkComboBox(
+        activation_f,
+        width=combo_w + 40,  # plus room for the dropdown arrow button
+        values=["0.25", "0.33", "0.50", "0.66", "0.75"],
+        command=cb_select,
+    )
+    # CTkComboBox.set() only bypasses the entry's own state check for "readonly", not
+    # "disabled" -- setting the starting value has to happen before disabling, or it's a no-op.
+    activation.set("0.33")
+    activation.configure(state=ctk.DISABLED)
+    mgr.tk_cb_activation = activation
     activation.grid(padx=10, pady=1, column=1, row=0, sticky="e")
 
-    weights = tk.Text(display, bg="#fff", width=72, height=33)
     text = get_default_graph_text()
-    weights = tk.Text(
+    mono_font = ctk.CTkFont(**MONOSPACE_FONT)
+    graph_w, graph_h = _char_size(mono_font, mgr.graph_config.x_size * 3 + 2, mgr.graph_config.y_size + 2)
+    weights = ctk.CTkTextbox(
         display,
-        bg="#fff",
-        width=mgr.graph_config.x_size * 3,
-        height=mgr.graph_config.y_size + 2,
+        fg_color="#fff",
+        font=mono_font,
+        width=graph_w,
+        height=graph_h,
     )
     weights.insert("1.0", text)
-    weights.config(state=tk.DISABLED)
+    weights.configure(state=ctk.DISABLED)
     weights.grid(column=0, row=1)
 
     mgr.tk_graph = weights

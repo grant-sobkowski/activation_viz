@@ -51,6 +51,10 @@ strict_optional = true
 warn_return_any = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+module = "customtkinter"
+ignore_missing_imports = true
+
 [tool.ruff]
 exclude = [".venv"]
 line-length = 120
